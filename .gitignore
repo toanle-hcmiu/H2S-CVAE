@@ -43,3 +43,6 @@ Data/HeadAndSkullShapes/*.ply
 # Temporary / test files
 test_smoke.py
 *.tmp
+
+
+*.zip

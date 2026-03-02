@@ -10,6 +10,7 @@ Usage
 """
 
 import argparse
+import gc
 import json
 import os
 import sys
@@ -114,6 +115,10 @@ def main():
                 bounds_max=bounds_max,
                 representation=args.representation,
             )
+
+            # Free trimesh caches, R-tree, and intersection buffers
+            # between meshes to prevent memory accumulation
+            gc.collect()
 
     print(f"\nDone. Voxelised files saved to: {voxel_dir}")
     if skipped:

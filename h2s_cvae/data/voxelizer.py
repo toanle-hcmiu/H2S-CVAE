@@ -135,8 +135,13 @@ def voxelize_and_save(
     bounds_max: np.ndarray,
     representation: str = "binary",
 ) -> None:
-    """Load a mesh, voxelize it, and save the result as a compressed .npy file."""
+    """Load a mesh, voxelize it, and save the result as a .npy file."""
     mesh = load_mesh(mesh_path)
     vol = voxelize_mesh(mesh, resolution, bounds_min, bounds_max, representation)
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     np.save(save_path, vol)
+
+    # Explicitly clear trimesh's heavy cached properties (R-tree,
+    # triangles array, etc.) so that gc.collect() can actually free them.
+    mesh._cache.clear()
+    del vol, mesh
