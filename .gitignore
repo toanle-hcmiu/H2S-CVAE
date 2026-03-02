@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Generated data (large — regenerate with preprocess.py)
+Data/Voxelized/
+
+# Training outputs (large — regenerate with train.py)
+checkpoints/
+logs/
+outputs/
+
+# Original mesh data (large — not tracked in git)
+Data/HeadAndSkullShapes/*.ply
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary / test files
+test_smoke.py
+*.tmp
