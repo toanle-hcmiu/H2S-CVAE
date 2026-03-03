@@ -1,4 +1,4 @@
-\# Head-to-Skull 3D Conditional VAE (H2S-CVAE)
+# Head-to-Skull 3D Conditional VAE (H2S-CVAE)
 
 Predicting the internal skull surface geometry from external head surface meshes
 using a **3D CNN-based Conditional Variational Autoencoder (CVAE)** in PyTorch.
