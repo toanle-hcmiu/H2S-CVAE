@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from h2s_cvae.config import get_default_config
 from h2s_cvae.data.dataset import read_subject_ids
+from h2s_cvae.data.voxelizer import load_bounds
 from h2s_cvae.evaluation.metrics import (
     MetricResult,
     aggregate_results,
@@ -84,6 +85,19 @@ def main():
     voxel_dir = cfg.paths.resolve_voxel_dir(args.resolution)
     output_dir = cfg.paths.output_dir
     os.makedirs(output_dir, exist_ok=True)
+
+    # --- Physical spacing (mm) from global bounding box ---
+    bounds_file = os.path.join(voxel_dir, "global_bounds.json")
+    if os.path.isfile(bounds_file):
+        bounds = load_bounds(bounds_file)
+        extent = bounds["max"] - bounds["min"]
+        pitch = float(extent.max()) / args.resolution  # mm per voxel
+        spacing = (pitch, pitch, pitch)
+        print(f"Physical voxel spacing: {pitch:.4f} mm  (from {bounds_file})")
+    else:
+        spacing = None
+        print("Warning: global_bounds.json not found — metrics will be in voxel units, not mm.")
+
     if args.save_meshes:
         mesh_out_dir = os.path.join(output_dir, "predicted_meshes")
         os.makedirs(mesh_out_dir, exist_ok=True)
@@ -115,13 +129,14 @@ def main():
             target_volume=skull_vol,
             subject_id=sid,
             level=cfg.evaluation.marching_cubes_level,
+            spacing=spacing,
         )
         results.append(result)
 
         # Save predicted mesh
         if args.save_meshes:
             try:
-                verts, faces = voxel_to_surface(pred_vol, level=cfg.evaluation.marching_cubes_level)
+                verts, faces = voxel_to_surface(pred_vol, level=cfg.evaluation.marching_cubes_level, spacing=spacing)
                 mesh = trimesh.Trimesh(vertices=verts, faces=faces)
                 mesh.export(os.path.join(mesh_out_dir, f"{sid}-PredSkull.ply"))
             except Exception as e:
@@ -138,15 +153,18 @@ def main():
     print(f"  Subjects evaluated: {agg['n_subjects']}")
     print(f"  Dice coefficient:   {agg['dice_mean']:.4f} ± {agg['dice_std']:.4f} "
           f"(median {agg['dice_median']:.4f})")
+    unit = "mm" if spacing else "vox"
     print(f"  Hausdorff distance: {agg['hausdorff_mean']:.3f} ± {agg['hausdorff_std']:.3f} "
-          f"(median {agg['hausdorff_median']:.3f})")
+          f"(median {agg['hausdorff_median']:.3f}) {unit}")
     print(f"  Mean Surf. Dist.:   {agg['msd_mean']:.3f} ± {agg['msd_std']:.3f} "
-          f"(median {agg['msd_median']:.3f})")
+          f"(median {agg['msd_median']:.3f}) {unit}")
     print("=" * 60)
 
     # Save results to JSON
     results_json = {
         "aggregate": agg,
+        "units": {"dice": "unitless", "hausdorff": unit, "mean_surface_distance": unit},
+        "voxel_spacing_mm": spacing[0] if spacing else None,
         "per_subject": [
             {
                 "subject_id": r.subject_id,
