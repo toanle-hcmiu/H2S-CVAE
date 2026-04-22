@@ -46,3 +46,6 @@ test_smoke.py
 
 
 *.zip
+
+# Thesis LaTeX template (docs/artifact folder)
+International_University__HCMIU___VNU__Pre_thesis_and_Thesis_LaTeX_Template/

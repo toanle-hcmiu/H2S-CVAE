@@ -158,12 +158,22 @@ def main():
           f"(median {agg['hausdorff_median']:.3f}) {unit}")
     print(f"  Mean Surf. Dist.:   {agg['msd_mean']:.3f} ± {agg['msd_std']:.3f} "
           f"(median {agg['msd_median']:.3f}) {unit}")
+    print(f"  RMS Surf. Dist.:    {agg['rmsd_mean']:.3f} ± {agg['rmsd_std']:.3f} "
+          f"(median {agg['rmsd_median']:.3f}) {unit}")
+    print(f"  Volume deviation:   {agg['volume_dev_percent_mean']:.2f}% ± {agg['volume_dev_percent_std']:.2f}% "
+          f"(median {agg['volume_dev_percent_median']:.2f}%)")
     print("=" * 60)
 
     # Save results to JSON
     results_json = {
         "aggregate": agg,
-        "units": {"dice": "unitless", "hausdorff": unit, "mean_surface_distance": unit},
+        "units": {
+            "dice": "unitless",
+            "hausdorff": unit,
+            "mean_surface_distance": unit,
+            "rms_surface_distance": unit,
+            "volume_deviation_percent": "percent",
+        },
         "voxel_spacing_mm": spacing[0] if spacing else None,
         "per_subject": [
             {
@@ -171,6 +181,11 @@ def main():
                 "dice": r.dice,
                 "hausdorff": r.hausdorff,
                 "mean_surface_distance": r.mean_surface_distance,
+                "rms_surface_distance": r.rms_surface_distance,
+                "max_surface_distance": r.max_surface_distance,
+                "volume_pred": r.volume_pred,
+                "volume_gt": r.volume_gt,
+                "volume_deviation_percent": r.volume_deviation_percent,
             }
             for r in results
         ],

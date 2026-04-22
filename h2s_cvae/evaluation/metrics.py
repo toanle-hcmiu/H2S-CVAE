@@ -26,8 +26,17 @@ class MetricResult:
 
     subject_id: str = ""
     dice: float = 0.0
-    hausdorff: float = 0.0  # mm (or voxel units, depending on scaling)
-    mean_surface_distance: float = 0.0
+    # Surface distance metrics (mm if spacing is provided; otherwise voxel units)
+    hausdorff: float = 0.0  # symmetric max surface distance
+    mean_surface_distance: float = 0.0  # symmetric mean surface distance (MSD)
+    rms_surface_distance: float = 0.0  # symmetric RMS surface distance
+    max_surface_distance: float = 0.0  # alias of hausdorff (kept for clarity)
+
+    # Volume metrics
+    volume_pred: float = 0.0  # occupied volume (voxels^3 or mm^3 depending on downstream use)
+    volume_gt: float = 0.0
+    volume_deviation_percent: float = 0.0  # 100 * |Vp - Vgt| / Vgt
+
     # Optionally store per-vertex distances for further analysis
     pred_to_gt_distances: Optional[np.ndarray] = None
     gt_to_pred_distances: Optional[np.ndarray] = None
@@ -127,6 +136,12 @@ def mean_surface_distance(verts_a: np.ndarray, verts_b: np.ndarray) -> float:
     return float(0.5 * (a2b.mean() + b2a.mean()))
 
 
+def rms_surface_distance(verts_a: np.ndarray, verts_b: np.ndarray) -> float:
+    """Symmetric RMS surface distance (root mean square of bidirectional distances)."""
+    a2b, b2a = surface_distances(verts_a, verts_b)
+    return float(np.sqrt(0.5 * (np.mean(a2b ** 2) + np.mean(b2a ** 2))))
+
+
 # =========================================================================== #
 #  Combined evaluation for a single subject                                    #
 # =========================================================================== #
@@ -152,6 +167,23 @@ def evaluate_subject(
     # Dice (volumetric)
     result.dice = dice_coefficient(pred_volume, target_volume, threshold=level)
 
+    # Volume deviation (percentage). Works in voxel counts; percent is invariant to units.
+    p = (pred_volume >= level).astype(np.uint8)
+    t = (target_volume >= level).astype(np.uint8)
+    # Handle optional channel dimension
+    if p.ndim == 4:
+        p = p.squeeze(0)
+    if t.ndim == 4:
+        t = t.squeeze(0)
+    vp = float(p.sum())
+    vg = float(t.sum())
+    result.volume_pred = vp
+    result.volume_gt = vg
+    if vg > 0:
+        result.volume_deviation_percent = float(100.0 * abs(vp - vg) / vg)
+    else:
+        result.volume_deviation_percent = 0.0 if vp == 0 else float("inf")
+
     if compute_surface:
         try:
             pred_verts, _ = voxel_to_surface(pred_volume, level=level, spacing=spacing)
@@ -160,16 +192,25 @@ def evaluate_subject(
             # Marching cubes may fail if the volume is empty
             result.hausdorff = float("inf")
             result.mean_surface_distance = float("inf")
+            result.rms_surface_distance = float("inf")
+            result.max_surface_distance = float("inf")
             return result
 
         if len(pred_verts) == 0 or len(gt_verts) == 0:
             result.hausdorff = float("inf")
             result.mean_surface_distance = float("inf")
+            result.rms_surface_distance = float("inf")
+            result.max_surface_distance = float("inf")
             return result
 
         a2b, b2a = surface_distances(pred_verts, gt_verts)
-        result.hausdorff = float(max(a2b.max(), b2a.max()))
-        result.mean_surface_distance = float(0.5 * (a2b.mean() + b2a.mean()))
+        max_d = float(max(a2b.max(), b2a.max()))
+        mean_d = float(0.5 * (a2b.mean() + b2a.mean()))
+        rms_d = float(np.sqrt(0.5 * (np.mean(a2b ** 2) + np.mean(b2a ** 2))))
+        result.hausdorff = max_d
+        result.max_surface_distance = max_d
+        result.mean_surface_distance = mean_d
+        result.rms_surface_distance = rms_d
         result.pred_to_gt_distances = a2b
         result.gt_to_pred_distances = b2a
 
@@ -181,6 +222,8 @@ def aggregate_results(results: list[MetricResult]) -> dict:
     dices = [r.dice for r in results]
     hausdorffs = [r.hausdorff for r in results if r.hausdorff != float("inf")]
     msds = [r.mean_surface_distance for r in results if r.mean_surface_distance != float("inf")]
+    rmsds = [r.rms_surface_distance for r in results if r.rms_surface_distance != float("inf")]
+    vol_devs = [r.volume_deviation_percent for r in results if r.volume_deviation_percent != float("inf")]
     return {
         "n_subjects": len(results),
         "dice_mean": float(np.mean(dices)) if dices else 0.0,
@@ -192,4 +235,10 @@ def aggregate_results(results: list[MetricResult]) -> dict:
         "msd_mean": float(np.mean(msds)) if msds else 0.0,
         "msd_std": float(np.std(msds)) if msds else 0.0,
         "msd_median": float(np.median(msds)) if msds else 0.0,
+        "rmsd_mean": float(np.mean(rmsds)) if rmsds else 0.0,
+        "rmsd_std": float(np.std(rmsds)) if rmsds else 0.0,
+        "rmsd_median": float(np.median(rmsds)) if rmsds else 0.0,
+        "volume_dev_percent_mean": float(np.mean(vol_devs)) if vol_devs else 0.0,
+        "volume_dev_percent_std": float(np.std(vol_devs)) if vol_devs else 0.0,
+        "volume_dev_percent_median": float(np.median(vol_devs)) if vol_devs else 0.0,
     }
